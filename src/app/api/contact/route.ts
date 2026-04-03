@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { sendLeadEmails } from "@/lib/email";
-import { prisma } from "@/lib/prisma";
+import { isDatabaseConfigured, prisma } from "@/lib/prisma";
 
 const contactSchema = z.object({
   name: z.string().min(1, "Name is required").max(120),
@@ -27,16 +27,24 @@ export async function POST(request: Request) {
 
     const { name, email, phone, company, message, intent } = parsed.data;
 
-    await prisma.contactSubmission.create({
-      data: {
-        name,
-        email,
-        phone: phone || null,
-        company: company || null,
-        message,
-        intent,
-      },
-    });
+    let savedToDb = false;
+    if (isDatabaseConfigured()) {
+      try {
+        await prisma.contactSubmission.create({
+          data: {
+            name,
+            email,
+            phone: phone || null,
+            company: company || null,
+            message,
+            intent,
+          },
+        });
+        savedToDb = true;
+      } catch (dbErr) {
+        console.error("[contact] Database save failed:", dbErr);
+      }
+    }
 
     const emailResult = await sendLeadEmails({
       name,
@@ -47,6 +55,29 @@ export async function POST(request: Request) {
       intent,
     });
 
+    const ownerEmailed = emailResult.ownerSent;
+
+    if (!savedToDb && !ownerEmailed) {
+      const hasResend = !!process.env.RESEND_API_KEY?.trim();
+      if (!isDatabaseConfigured() && !hasResend) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "This form is not fully configured yet. Please email or call us using the details on this page.",
+          },
+          { status: 503 },
+        );
+      }
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Could not deliver your message. Please try again or call us.",
+        },
+        { status: 500 },
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       confirmationSent: emailResult.confirmationSent,
@@ -54,7 +85,7 @@ export async function POST(request: Request) {
   } catch (e) {
     console.error(e);
     return NextResponse.json(
-      { ok: false, error: "Could not save your message. Please try again or call us." },
+      { ok: false, error: "Could not process your message. Please try again or call us." },
       { status: 500 },
     );
   }

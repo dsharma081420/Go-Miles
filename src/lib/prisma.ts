@@ -10,3 +10,9 @@ export const prisma =
   });
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+
+/** True when DATABASE_URL is set to a Postgres connection string (used to decide if we attempt Prisma writes). */
+export function isDatabaseConfigured(): boolean {
+  const u = process.env.DATABASE_URL?.trim();
+  return !!u && /^postgres(ql)?:\/\//i.test(u);
+}
