@@ -52,8 +52,8 @@ npm start
 3. Under **Environment Variables**, add:
    - **`DATABASE_URL`** — your `mongodb+srv://...` (or `mongodb://...`) string  
    - **`RESEND_API_KEY`**, **`NOTIFICATION_EMAIL`**, optional **`RESEND_FROM`**  
-4. **Deploy.** `vercel.json` runs `npm run build:production`, which runs **`prisma db push`** for MongoDB (syncs the `ContactSubmission` collection) then **`next build`**.  
-5. Atlas must allow inbound connections from the internet (or from Vercel) for the build step to succeed.
+4. **Deploy.** `vercel.json` runs `npm run build:production`, which runs **`prisma db push --skip-generate --accept-data-loss`** for MongoDB (non-interactive, so it won’t hang on Vercel) then **`next build`**.  
+5. **Atlas → Network Access:** allow **`0.0.0.0/0`** (or Vercel’s ranges) so the **build** and **serverless functions** can connect. If `db push` still fails with connection/auth errors, check the URI password (URL-encode special characters) and that the DB user has read/write on that database.
 
 ### Custom domain **gomiles.ca** (Cloudflare)
 
