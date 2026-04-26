@@ -15,6 +15,8 @@ run("npx prisma generate");
 
 const raw = process.env.DATABASE_URL;
 const url = typeof raw === "string" ? raw.trim() : "";
+const shouldPushSchemaOnBuild =
+  (process.env.PRISMA_DB_PUSH_ON_BUILD || "").toLowerCase() === "true";
 
 if (!url) {
   console.warn(
@@ -41,10 +43,20 @@ if (!url) {
     process.exit(1);
   }
 
-  console.log("\n[build] MongoDB detected — running prisma db push (non-interactive)\n");
-  // --skip-generate: already ran generate above
-  // --accept-data-loss: required on Vercel (no TTY); avoids hanging on Prisma prompts
-  run("npx prisma db push --skip-generate --accept-data-loss");
+  if (!shouldPushSchemaOnBuild) {
+    console.warn(
+      "\n[build] MongoDB detected — skipping prisma db push during build.\n" +
+        "Reason: Vercel builds often fail if Atlas auth/network isn't ready.\n" +
+        "To enable db push on build, set PRISMA_DB_PUSH_ON_BUILD=true in Vercel env vars.\n",
+    );
+  } else {
+    console.log(
+      "\n[build] MongoDB detected — running prisma db push (non-interactive)\n",
+    );
+    // --skip-generate: already ran generate above
+    // --accept-data-loss: required on Vercel (no TTY); avoids hanging on Prisma prompts
+    run("npx prisma db push --skip-generate --accept-data-loss");
+  }
 } else if (/^postgres(ql)?:\/\//i.test(url)) {
   console.log("\n[build] PostgreSQL detected — running prisma migrate deploy\n");
   run("npx prisma migrate deploy");
